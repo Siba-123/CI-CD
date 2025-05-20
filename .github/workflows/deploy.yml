@@ -33,34 +33,31 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
     - name: Deploy to EC2 instance using Docker Compose
-  uses: appleboy/ssh-action@master
-  with:
-    host: ${{ secrets.EC2_HOST }}
-    username: ubuntu
-    key: ${{ secrets.EC2_SSH_KEY }}
-    script: |
-      CONTAINER_NAME=test-ci-cd
-      IMAGE=${{ steps.login-ecr.outputs.registry }}/test-ci-cd:${{ github.sha }}
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ubuntu
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          IMAGE=${{ steps.login-ecr.outputs.registry }}/test-ci-cd:${{ github.sha }}
+          CONTAINER_NAME=test-ci-cd
 
-      # Login to ECR
-      aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+          # Log in to Amazon ECR
+          aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
 
-      # Create or overwrite docker-compose.yml
-      cat <<EOF > docker-compose.yml
-      version: "3.8"
-      services:
-        app:
-          image: $IMAGE
-          container_name: $CONTAINER_NAME
-          ports:
-            - "80:80"  # Change this if your app uses a different port
-          restart: always
-      EOF
+          # Generate docker-compose.yml file
+          cat <<EOF > docker-compose.yml
+          version: "3.8"
+          services:
+            web:
+              image: $IMAGE
+              container_name: $CONTAINER_NAME
+              restart: always
+              ports:
+                - "80:80"
+          EOF
 
-      # Stop and remove previous deployment
-      docker compose down || true
-
-      # Pull and start the updated container
-      docker compose pull
-      docker compose up -d
-
+          # Stop existing containers and bring up updated ones
+          docker compose down || true
+          docker compose pull
+          docker compose up -d
