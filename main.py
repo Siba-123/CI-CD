@@ -1,1 +1,1 @@
-print("Hello Python! CI/CD with GitHub Actions, ECR AND EC2")
+print("Hello World! Python! CI/CD with GitHub Actions, ECR AND EC2")
