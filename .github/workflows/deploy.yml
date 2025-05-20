@@ -32,18 +32,35 @@ jobs:
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-    - name: Deploy to EC2 instance
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ubuntu
-        key: ${{ secrets.EC2_SSH_KEY }}
-        script: |
-          CONTAINER_NAME=test-ci-cd
-          IMAGE=${{ steps.login-ecr.outputs.registry }}/test-ci-cd:${{ github.sha }}
-          aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
-          docker stop $CONTAINER_NAME || true
-          docker rm $CONTAINER_NAME || true
-          docker rmi $IMAGE || true
-          docker pull $IMAGE
-          docker run -d --name $CONTAINER_NAME $IMAGE
+    - name: Deploy to EC2 instance using Docker Compose
+  uses: appleboy/ssh-action@master
+  with:
+    host: ${{ secrets.EC2_HOST }}
+    username: ubuntu
+    key: ${{ secrets.EC2_SSH_KEY }}
+    script: |
+      CONTAINER_NAME=test-ci-cd
+      IMAGE=${{ steps.login-ecr.outputs.registry }}/test-ci-cd:${{ github.sha }}
+
+      # Login to ECR
+      aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+
+      # Create or overwrite docker-compose.yml
+      cat <<EOF > docker-compose.yml
+      version: "3.8"
+      services:
+        app:
+          image: $IMAGE
+          container_name: $CONTAINER_NAME
+          ports:
+            - "80:80"  # Change this if your app uses a different port
+          restart: always
+      EOF
+
+      # Stop and remove previous deployment
+      docker compose down || true
+
+      # Pull and start the updated container
+      docker compose pull
+      docker compose up -d
+
