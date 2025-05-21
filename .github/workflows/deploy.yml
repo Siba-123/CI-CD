@@ -40,24 +40,15 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
           IMAGE=${{ steps.login-ecr.outputs.registry }}/test-ci-cd:${{ github.sha }}
-          CONTAINER_NAME=test-ci-cd
 
           # Log in to Amazon ECR
           aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
 
-          # Generate docker-compose.yml file
-          cat <<EOF > docker-compose.yml
-          version: "3.8"
-          services:
-            web:
-              image: $IMAGE
-              container_name: $CONTAINER_NAME
-              restart: always
-              ports:
-                - "80:80"
-          EOF
+          # Pull the latest image manually
+          docker pull $IMAGE
 
-          # Stop existing containers and bring up updated ones
-          docker-compose down || true
-          docker-compose pull
+          # Remove the old container if running
+          docker rm -f test-ci-cd || true
+
+          # Use existing docker-compose.yml file to start services
           docker-compose up -d
